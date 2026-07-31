@@ -1,0 +1,87 @@
+name: Terraform
+
+# Plan on every PR into main; if the plan succeeds, the apply job waits
+# for manual approval (via the "aws-apply" environment) before touching AWS.
+on:
+  pull_request:
+    branches: [main]
+
+# Newer pushes to the same PR cancel superseded runs.
+concurrency:
+  group: terraform-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_REGION: af-south-1
+  TF_IN_AUTOMATION: "true"
+  # All Terraform config lives under project/
+  WORKDIR: project
+  BACKEND_CONFIG: values/dev/dev.tfbackend
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init -input=false -backend-config="${BACKEND_CONFIG}"
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        run: terraform plan -input=false -no-color -out=tfplan
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.WORKDIR }}/tfplan
+          retention-days: 5
+
+  apply:
+    name: Apply (approval required)
+    needs: plan
+    runs-on: ubuntu-latest
+    # Gate: the "aws-apply" environment has a required reviewer, so this job
+    # pauses for approval before running.
+    environment: aws-apply
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+
+      - name: Terraform init
+        run: terraform init -input=false -backend-config="${BACKEND_CONFIG}"
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.WORKDIR }}
+
+      - name: Terraform apply
+        run: terraform apply -input=false -no-color tfplan
