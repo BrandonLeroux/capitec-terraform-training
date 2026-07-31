@@ -1,3 +1,4 @@
+# CI test: verify per-environment plan on PRs into int and prod.
 module "eks" {
   source = "./modules/eks"
 
