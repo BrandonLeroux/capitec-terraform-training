@@ -32,7 +32,7 @@ module "subnet" {
   vpc_id             = var.vpc_id
   rt_id              = var.rt_id
   availability_zones = var.availability_zones
-  cidr_blocks        = local.subnet_allocation.brandon_le_roux.subnets
+  cidr_blocks        = local.subnet_allocation[var.participant].subnets
   prefix             = var.prefix
   environment        = var.environment
   owner              = var.owner

@@ -3,6 +3,12 @@ variable "env" {
   default = ["dev", "int", "qa", "prod"]
 }
 
+variable "participant" {
+  type        = string
+  description = "Trainee key into the subnet allocation table (see modules/eks/eks.locals.tf)."
+  default     = "brandon_le_roux"
+}
+
 variable "surname" {
   type    = string
   default = "leroux"

@@ -37,6 +37,16 @@ variable "node_policy_arns" {
   ]
 }
 
+variable "participant" {
+  type        = string
+  description = "Key into local.subnet_allocation selecting which trainee's /24s to use."
+  default     = "brandon_le_roux"
+  validation {
+    condition     = contains(keys(local.subnet_allocation), var.participant)
+    error_message = "participant must be one of the keys defined in local.subnet_allocation."
+  }
+}
+
 variable "capacity_type" {
   type        = string
   description = "Type of capacity to launch (ON_DEMAND or SPOT)"
