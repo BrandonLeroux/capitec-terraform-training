@@ -4,7 +4,7 @@ name: Terraform
 # for manual approval (via the "aws-apply" environment) before touching AWS.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev, int, qa, prod]
 
 # Newer pushes to the same PR cancel superseded runs.
 concurrency:
