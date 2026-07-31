@@ -15,7 +15,7 @@ GitHub Actions pipeline.
 flowchart TB
   subgraph AWS["AWS account 982215135100 · af-south-1"]
     direction TB
-    S3["S3 remote state<br/>lerouxbap-s3-backend<br/>(dev / int / prod keys)"]
+    S3["S3 remote state<br/>lerouxbap-s3-backend<br/>versioned · dev/int/qa/prod keys"]
 
     subgraph VPC["VPC vpc-04afeafc…"]
       direction TB
@@ -47,8 +47,9 @@ flowchart TB
 ```
 
 Subnet CIDRs are chosen per **trainee** via `var.participant` (a key into the
-allocation table in `modules/eks/eks.locals.tf`). Each trainee gets three
-consecutive `/24`s, generated from a base octet rather than hand-listed:
+allocation table in the root `participants.tf`; the `eks` module itself just
+receives `cidr_blocks`). Each trainee gets three consecutive `/24`s, generated
+from a base octet rather than hand-listed:
 
 ```mermaid
 flowchart LR
@@ -98,8 +99,12 @@ flowchart LR
   bucket -->|"2 · backend for"| proj["project/<br/>terraform init -backend-config=…"]
 ```
 
-- **Backend:** S3 bucket `lerouxbap-s3-backend`, native lockfile (`use_lockfile`).
-- **Per-environment keys:** `values/<env>/<env>.tfbackend` → `dev/`, `int/`, `prod/…terraform.tfstate`.
+- **Backend:** S3 bucket `lerouxbap-s3-backend` — **versioned**, AES256-encrypted,
+  public access fully blocked, with native state locking (`use_lockfile`). These
+  are enforced by `project-backend/` so the bucket is bootstrapped correctly for
+  every environment.
+- **Per-environment keys:** `values/<env>/<env>.tfbackend` → `dev/`, `int/`, `qa/`,
+  `prod/…terraform.tfstate` — one state file per environment (created on first apply).
 - Initialise for an environment with:
 
   ```bash
@@ -141,42 +146,42 @@ push, and open a PR freely.
 
 ## CI/CD pipeline
 
-`.github/workflows/terraform.yml` — **plan on the PR, apply on merge.**
+`.github/workflows/terraform.yml` — **plan on the PR, apply on merge**, with the
+target **environment derived from the branch** (`dev`/`int`/`qa`/`prod`; `main` → dev).
 
 ```mermaid
 flowchart TD
-  open["Open / update PR → protected branch"] --> plan["Plan job<br/>fmt · init · validate · plan (coloured)"]
-  plan --> post["Plan posted as PR comment<br/>+ run summary"]
+  open["Open / update PR → env branch"] --> resolve["Resolve env from branch"]
+  resolve --> plan["Plan job<br/>init · fmt · validate · plan (coloured)"]
+  plan --> post["Plan posted as PR comment + run summary"]
   post --> gate{"Plan good?"}
-  gate -- "merge PR (= your approval)" --> merge["Merge → push to base branch"]
+  gate -- "merge PR (= approval)" --> merge["Merge → push to that branch"]
   gate -- "close/iterate" --> open
-  merge --> apply["Apply job<br/>terraform apply -auto-approve"]
-  apply --> aws[("AWS")]
-
-  manual["Actions ▸ Run workflow"] -.-> plan
-  manual -.-> apply
+  merge --> apply["Apply job (that env)<br/>init · fmt · validate · apply"]
+  apply --> aws[("AWS · that env's state")]
 ```
 
-| Trigger | Runs |
-|---------|------|
-| `pull_request` → `main`/`dev`/`int`/`qa`/`prod` | **Plan** only (comment + summary; apply skipped) |
-| `push` after a merge | **Apply** only (`-auto-approve`, re-plans so never stale) |
-| Manual `workflow_dispatch` | Both, gated only by branch selection |
+| Trigger | Runs | Environment |
+|---------|------|-------------|
+| `pull_request` → env branch | **Plan** only (comment + summary; apply skipped) | target branch |
+| `push` after a merge | **Apply** only (`-auto-approve`, re-plans so never stale) | pushed branch |
+| Manual `workflow_dispatch` | Plan + Apply | selected branch |
+| `terraform-destroy.yml` (manual) | **Destroy** (type `destroy` to confirm) | chosen env |
 
-Merging a PR **is** the approval — there is no separate deploy-approval gate.
-AWS auth uses the repo secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`.
-
-> **Note:** CI currently always inits with `values/dev/dev.tfbackend`, so every
-> pipeline run targets the **dev** state regardless of branch. Per-environment
-> backends exist for manual use; wiring the CI backend to the target branch is a
-> future step.
+Each branch uses its own `values/<env>/<env>.tfbackend` (state) and
+`<env>.tfvars` (variables); the apply runs under the matching **GitHub
+Environment** (`dev`/`int`/`qa`/`prod`) for per-env deployment history.
+`fmt` + `validate` run immediately before every plan/apply. Merging a PR **is**
+the approval. AWS auth uses the repo secrets `AWS_ACCESS_KEY_ID` /
+`AWS_SECRET_ACCESS_KEY`.
 
 ---
 
-## Key variables (`project/variable.tf`)
+## Key variables (`project/variables.tf`)
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
+| `region` | `af-south-1` | AWS region to deploy into |
 | `participant` | `brandon_le_roux` | Selects the trainee's `/24` subnet block |
 | `capacity_type` | `SPOT` | `ON_DEMAND` or `SPOT` (validated) |
 | `environment` | `dev` | Name suffix on resources |
