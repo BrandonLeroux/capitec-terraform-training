@@ -48,8 +48,21 @@ flowchart TB
 
 Subnet CIDRs are chosen per **trainee** via `var.participant` (a key into the
 allocation table in `modules/eks/eks.locals.tf`). Each trainee gets three
-consecutive `/24`s; the default `brandon_le_roux` → `10.0.6.0/24`, `10.0.7.0/24`,
-`10.0.8.0/24`.
+consecutive `/24`s, generated from a base octet rather than hand-listed:
+
+```mermaid
+flowchart LR
+  p["var.participant<br/>e.g. brandon_le_roux"] --> m["participants map<br/>{ name, base octet }"]
+  m --> g["for i in range(3):<br/>10.0.(base+i).0/24"]
+  g --> s["3 × /24 subnets<br/>→ one per AZ"]
+```
+
+| participant | base | subnets |
+|-------------|------|---------|
+| `amen_moipushi` | 0 | `10.0.0/1/2.0/24` |
+| `brandon_le_roux` *(default)* | 6 | `10.0.6/7/8.0/24` |
+| `nathan_mills` | 60 | `10.0.60/61/62.0/24` |
+| … 34 trainees total | | |
 
 ---
 
@@ -74,6 +87,16 @@ flowchart LR
 ---
 
 ## Remote state
+
+The state bucket is a **chicken-and-egg bootstrap**: `project-backend/` creates
+the S3 bucket first (with local state), and `project/` then uses it as its
+remote backend.
+
+```mermaid
+flowchart LR
+  boot["project-backend/<br/>aws_s3_bucket.terraform_state"] -->|"1 · creates (local state)"| bucket[("S3 bucket<br/>lerouxbap-s3-backend")]
+  bucket -->|"2 · backend for"| proj["project/<br/>terraform init -backend-config=…"]
+```
 
 - **Backend:** S3 bucket `lerouxbap-s3-backend`, native lockfile (`use_lockfile`).
 - **Per-environment keys:** `values/<env>/<env>.tfbackend` → `dev/`, `int/`, `prod/…terraform.tfstate`.
