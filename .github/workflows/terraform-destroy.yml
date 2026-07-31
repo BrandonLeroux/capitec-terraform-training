@@ -1,0 +1,59 @@
+name: Terraform destroy
+
+# Manual only. Destroys the selected environment's resources.
+# Requires typing "destroy" to confirm, and runs through the aws-apply
+# environment (so it shows in deployment history and can be re-gated).
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to destroy
+        type: choice
+        options: [dev, int, prod]
+        default: dev
+      confirm:
+        description: Type "destroy" to confirm
+        type: string
+        required: true
+
+concurrency:
+  group: terraform-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_REGION: af-south-1
+  TF_IN_AUTOMATION: "true"
+  WORKDIR: project
+
+jobs:
+  destroy:
+    name: Destroy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: aws-apply
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - name: Verify confirmation
+        if: inputs.confirm != 'destroy'
+        run: |
+          echo "::error::confirm must be exactly 'destroy' — aborting."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init -input=false -backend-config="values/${{ inputs.environment }}/${{ inputs.environment }}.tfbackend"
+
+      - name: Terraform destroy
+        # Pseudo-TTY for coloured output.
+        run: script -qefc "terraform destroy -input=false -auto-approve -var-file=values/${{ inputs.environment }}/${{ inputs.environment }}.tfvars" /dev/null
