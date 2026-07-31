@@ -11,6 +11,19 @@ locals {
     Owner       = var.owner
     Environment = var.environment
   }
+
+  iam_roles = {
+    cluster = {
+      role_name = local.cluster_role_name
+      service   = "eks.amazonaws.com"
+      actions   = ["sts:AssumeRole", "sts:TagSession"]
+    }
+    node = {
+      role_name = local.node_role_name
+      service   = "ec2.amazonaws.com"
+      actions   = ["sts:AssumeRole"]
+    }
+  }
 }
 
 module "subnet" {
@@ -33,7 +46,7 @@ resource "aws_eks_cluster" "eks-cluster" {
     #bootstrap_cluster_creator_admin_permissions = true
   }
 
-  role_arn = aws_iam_role.eks-cluster-role.arn
+  role_arn = aws_iam_role.this["cluster"].arn
   version  = "1.35"
 
   vpc_config {
@@ -50,30 +63,40 @@ resource "aws_eks_cluster" "eks-cluster" {
   tags = merge(local.common_tags, { Name = local.cluster_name })
 }
 
-resource "aws_iam_role" "eks-cluster-role" {
-  name = local.cluster_role_name
+resource "aws_iam_role" "this" {
+  for_each = local.iam_roles
+
+  name = each.value.role_name
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Action = [
-          "sts:AssumeRole",
-          "sts:TagSession"
-        ]
+        Action = each.value.actions
         Effect = "Allow"
         Principal = {
-          Service = "eks.amazonaws.com"
+          Service = each.value.service
         }
       },
     ]
   })
 
-  tags = merge(local.common_tags, { Name = local.cluster_role_name })
+  tags = merge(local.common_tags, { Name = each.value.role_name })
+}
+
+# Preserve existing state addresses when collapsing the two roles into for_each.
+moved {
+  from = aws_iam_role.eks-cluster-role
+  to   = aws_iam_role.this["cluster"]
+}
+
+moved {
+  from = aws_iam_role.node-iam-role
+  to   = aws_iam_role.this["node"]
 }
 
 resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSClusterPolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.eks-cluster-role.name
+  role       = aws_iam_role.this["cluster"].name
 }
 
 # authentication_mode = "API" means Kubernetes RBAC access is governed
@@ -100,29 +123,11 @@ resource "aws_eks_access_policy_association" "admin" {
   }
 }
 
-resource "aws_iam_role" "node-iam-role" {
-  name = local.node_role_name
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      },
-    ]
-  })
-
-  tags = merge(local.common_tags, { Name = local.node_role_name })
-}
-
 resource "aws_iam_role_policy_attachment" "node" {
   for_each = toset(var.node_policy_arns)
 
   policy_arn = each.value
-  role       = aws_iam_role.node-iam-role.name
+  role       = aws_iam_role.this["node"].name
 }
 
 resource "aws_security_group_rule" "nodeport-ingress-sg" {
@@ -138,7 +143,7 @@ resource "aws_security_group_rule" "nodeport-ingress-sg" {
 resource "aws_eks_node_group" "eks-ng" {
   cluster_name    = aws_eks_cluster.eks-cluster.name
   node_group_name = local.node_group_name
-  node_role_arn   = aws_iam_role.node-iam-role.arn
+  node_role_arn   = aws_iam_role.this["node"].arn
   subnet_ids      = module.subnet.subnet_ids
 
   capacity_type  = var.capacity_type
