@@ -7,11 +7,6 @@ locals {
   node_group_name   = "${var.prefix}-eks-ng-${var.environment}"
   access_entry_name = "${var.prefix}-eks-access-entry-${var.environment}"
 
-  common_tags = {
-    Owner       = var.owner
-    Environment = var.environment
-  }
-
   iam_roles = {
     cluster = {
       role_name = local.cluster_role_name
@@ -35,7 +30,6 @@ module "subnet" {
   cidr_blocks        = local.subnet_allocation[var.participant].subnets
   prefix             = var.prefix
   environment        = var.environment
-  owner              = var.owner
 }
 
 resource "aws_eks_cluster" "eks-cluster" {
@@ -60,7 +54,7 @@ resource "aws_eks_cluster" "eks-cluster" {
     aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy,
   ]
 
-  tags = merge(local.common_tags, { Name = local.cluster_name })
+  tags = { Name = local.cluster_name }
 }
 
 resource "aws_iam_role" "this" {
@@ -80,7 +74,7 @@ resource "aws_iam_role" "this" {
     ]
   })
 
-  tags = merge(local.common_tags, { Name = each.value.role_name })
+  tags = { Name = each.value.role_name }
 }
 
 # Preserve existing state addresses when collapsing the two roles into for_each.
@@ -110,7 +104,7 @@ resource "aws_eks_access_entry" "eks-access-entry" {
   principal_arn = data.aws_caller_identity.current.arn
   type          = "STANDARD"
 
-  tags = merge(local.common_tags, { Name = local.access_entry_name })
+  tags = { Name = local.access_entry_name }
 }
 
 resource "aws_eks_access_policy_association" "admin" {
@@ -159,7 +153,7 @@ resource "aws_eks_node_group" "eks-ng" {
     max_unavailable = 1
   }
 
-  tags = merge(local.common_tags, { Name = local.node_group_name })
+  tags = { Name = local.node_group_name }
 
   # Ensure IAM permissions are created before and deleted after the
   # node group, otherwise EKS cannot properly bootstrap/tear down nodes.

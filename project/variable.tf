@@ -1,8 +1,3 @@
-variable "env" {
-  type    = list(string)
-  default = ["dev", "int", "qa", "prod"]
-}
-
 variable "participant" {
   type        = string
   description = "Trainee key into the subnet allocation table (see modules/eks/eks.locals.tf)."
@@ -17,11 +12,6 @@ variable "surname" {
 variable "initials" {
   type    = string
   default = "bap"
-}
-
-variable "resource" {
-  type    = string
-  default = "s3"
 }
 
 variable "environment" {
@@ -47,11 +37,6 @@ variable "rt_id" {
 variable "availability_zones" {
   type    = list(string)
   default = ["af-south-1a", "af-south-1b", "af-south-1c"]
-}
-
-variable "bucket_count" {
-  type    = number
-  default = 3
 }
 
 variable "capacity_type" {
