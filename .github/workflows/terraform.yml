@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: write
     defaults:
       run:
         working-directory: ${{ env.WORKDIR }}
@@ -68,6 +69,26 @@ jobs:
             terraform show -no-color tfplan
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment plan on PR
+        # Post the plan into the PR so it can be reviewed before merging.
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          terraform show -no-color tfplan > plan.txt
+          {
+            echo "#### Terraform plan 📖"
+            echo
+            echo "<details><summary>Show plan</summary>"
+            echo
+            echo '```terraform'
+            head -c 60000 plan.txt
+            echo '```'
+            echo "</details>"
+          } > plan_comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            -R "${{ github.repository }}" --body-file plan_comment.md
 
   apply:
     name: Apply (approval required)
