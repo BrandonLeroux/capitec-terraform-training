@@ -1,11 +1,13 @@
 name: Terraform
 
-# Plan on every PR into main; if the plan succeeds, the apply job waits
-# for manual approval (via the "aws-apply" environment) before touching AWS.
+# Plan on PRs (review gate); apply after a merge/push to a protected branch.
+# So merging the PR closes it AND triggers the gated deploy. Both jobs are
+# also reachable via a manual run from the Actions tab.
 on:
   pull_request:
     branches: [main, dev, int, qa, prod]
-  # Allow running by hand from the Actions tab (pick a branch).
+  push:
+    branches: [main, dev, int, qa, prod]
   workflow_dispatch:
 
 # Newer pushes to the same PR (or ref) cancel superseded runs.
@@ -25,6 +27,8 @@ env:
 jobs:
   plan:
     name: Plan
+    # PRs and manual runs only — not on push/merge.
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -65,19 +69,13 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan
-          path: ${{ env.WORKDIR }}/tfplan
-          retention-days: 5
-
   apply:
     name: Apply (approval required)
-    needs: plan
+    # Runs after a merge/push to a protected branch, or a manual dispatch —
+    # never on the PR itself. The "aws-apply" environment gates it on a
+    # required-reviewer approval before AWS is touched.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    # Gate: the "aws-apply" environment has a required reviewer, so this job
-    # pauses for approval before running.
     environment: aws-apply
     permissions:
       contents: read
@@ -90,18 +88,12 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.8
-          # Disable the output wrapper so the pseudo-TTY (and thus colour)
-          # is preserved in the logs.
           terraform_wrapper: false
 
       - name: Terraform init
         run: terraform init -input=false -backend-config="${BACKEND_CONFIG}"
 
-      - name: Download plan
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan
-          path: ${{ env.WORKDIR }}
-
       - name: Terraform apply
-        run: terraform apply -input=false -no-color tfplan
+        # Re-plans against the current state and applies, under a pseudo-TTY
+        # for coloured output. Re-planning avoids stale saved-plan errors.
+        run: script -qefc "terraform apply -input=false -auto-approve" /dev/null
