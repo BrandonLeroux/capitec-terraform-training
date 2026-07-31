@@ -4,7 +4,6 @@ module "eks" {
   prefix             = local.prefix
   participant        = var.participant
   environment        = var.environment
-  owner              = var.owner
   capacity_type      = var.capacity_type
   vpc_id             = var.vpc_id
   rt_id              = var.rt_id

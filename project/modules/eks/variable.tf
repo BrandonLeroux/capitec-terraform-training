@@ -4,13 +4,11 @@ variable "availability_zones" {
 }
 
 variable "vpc_id" {
-  type    = string
-  default = "vpc-04afeafc288c397af"
+  type = string
 }
 
 variable "rt_id" {
-  type    = string
-  default = "rtb-023fc1846d75af176"
+  type = string
 }
 
 variable "prefix" {
@@ -21,11 +19,6 @@ variable "prefix" {
 variable "environment" {
   type    = string
   default = "dev"
-}
-
-variable "owner" {
-  type    = string
-  default = "bap le roux"
 }
 
 variable "node_policy_arns" {

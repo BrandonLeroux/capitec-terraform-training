@@ -1,9 +1,4 @@
 locals {
-  common_tags = {
-    Owner       = var.owner
-    Environment = var.environment
-  }
-
   subnets = {
     for idx, az in var.availability_zones : az => {
       index      = idx
@@ -20,9 +15,9 @@ resource "aws_subnet" "this" {
   availability_zone       = each.key
   map_public_ip_on_launch = true
 
-  tags = merge(local.common_tags, {
+  tags = {
     Name = "${var.prefix}-az${each.value.index + 1}-subnet-${var.environment}"
-  })
+  }
 
   lifecycle {
     ignore_changes = [tags]
