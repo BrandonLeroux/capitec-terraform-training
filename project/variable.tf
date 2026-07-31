@@ -1,7 +1,11 @@
 variable "participant" {
   type        = string
-  description = "Trainee key into the subnet allocation table (see modules/eks/eks.locals.tf)."
+  description = "Trainee key into the subnet allocation table (see participants.tf)."
   default     = "brandon_le_roux"
+  validation {
+    condition     = contains(keys(local.subnet_allocation), var.participant)
+    error_message = "participant must be one of the keys defined in local.subnet_allocation."
+  }
 }
 
 variable "surname" {

@@ -1,4 +1,5 @@
-# Subnet allocation for training participants.
+# Training-specific subnet allocation (kept at the root so the eks module
+# stays generic and just receives cidr_blocks).
 # Each trainee gets 3 consecutive /24s starting at their base octet:
 #   10.0.<base>.0/24, 10.0.<base+1>.0/24, 10.0.<base+2>.0/24
 locals {

@@ -27,7 +27,7 @@ module "subnet" {
   vpc_id             = var.vpc_id
   rt_id              = var.rt_id
   availability_zones = var.availability_zones
-  cidr_blocks        = local.subnet_allocation[var.participant].subnets
+  cidr_blocks        = var.cidr_blocks
   prefix             = var.prefix
   environment        = var.environment
 }
@@ -36,12 +36,12 @@ resource "aws_eks_cluster" "eks-cluster" {
   name = local.cluster_name
 
   access_config {
-    authentication_mode = "API"
+    authentication_mode = var.authentication_mode
     #bootstrap_cluster_creator_admin_permissions = true
   }
 
   role_arn = aws_iam_role.this["cluster"].arn
-  version  = "1.35"
+  version  = var.cluster_version
 
   vpc_config {
     subnet_ids = module.subnet.subnet_ids
@@ -77,17 +77,6 @@ resource "aws_iam_role" "this" {
   tags = { Name = each.value.role_name }
 }
 
-# Preserve existing state addresses when collapsing the two roles into for_each.
-moved {
-  from = aws_iam_role.eks-cluster-role
-  to   = aws_iam_role.this["cluster"]
-}
-
-moved {
-  from = aws_iam_role.node-iam-role
-  to   = aws_iam_role.this["node"]
-}
-
 resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSClusterPolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
   role       = aws_iam_role.this["cluster"].name
@@ -110,7 +99,7 @@ resource "aws_eks_access_entry" "eks-access-entry" {
 resource "aws_eks_access_policy_association" "admin" {
   cluster_name  = aws_eks_cluster.eks-cluster.name
   principal_arn = aws_eks_access_entry.eks-access-entry.principal_arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  policy_arn    = var.cluster_admin_policy_arn
 
   access_scope {
     type = "cluster"
@@ -124,14 +113,16 @@ resource "aws_iam_role_policy_attachment" "node" {
   role       = aws_iam_role.this["node"].name
 }
 
-resource "aws_security_group_rule" "nodeport-ingress-sg" {
+resource "aws_security_group_rule" "node_ingress" {
+  for_each = var.node_security_group_ingress
+
   type              = "ingress"
-  from_port         = 30007
-  to_port           = 30007
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  description       = each.value.description
+  from_port         = each.value.from_port
+  to_port           = each.value.to_port
+  protocol          = each.value.protocol
+  cidr_blocks       = each.value.cidr_blocks
   security_group_id = aws_eks_cluster.eks-cluster.vpc_config[0].cluster_security_group_id
-  description       = "Allow inbound access to nginx NodePort service"
 }
 
 resource "aws_eks_node_group" "eks-ng" {
@@ -141,16 +132,16 @@ resource "aws_eks_node_group" "eks-ng" {
   subnet_ids      = module.subnet.subnet_ids
 
   capacity_type  = var.capacity_type
-  instance_types = ["t3.micro"]
+  instance_types = var.instance_types
 
   scaling_config {
-    min_size     = 1
-    max_size     = 3
-    desired_size = 2
+    min_size     = var.node_scaling.min_size
+    max_size     = var.node_scaling.max_size
+    desired_size = var.node_scaling.desired_size
   }
 
   update_config {
-    max_unavailable = 1
+    max_unavailable = var.node_max_unavailable
   }
 
   tags = { Name = local.node_group_name }
