@@ -1,15 +1,15 @@
 name: Terraform destroy
 
 # Manual only. Destroys the selected environment's resources.
-# Requires typing "destroy" to confirm, and runs through the aws-apply
-# environment (so it shows in deployment history and can be re-gated).
+# Requires typing "destroy" to confirm, and runs through that environment's
+# GitHub Environment (so it shows in per-env deployment history and can be gated).
 on:
   workflow_dispatch:
     inputs:
       environment:
         description: Environment to destroy
         type: choice
-        options: [dev, int, prod]
+        options: [dev, int, qa, prod]
         default: dev
       confirm:
         description: Type "destroy" to confirm
@@ -31,7 +31,7 @@ jobs:
   destroy:
     name: Destroy ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    environment: aws-apply
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
     defaults:
