@@ -7,5 +7,5 @@ module "eks" {
   vpc_id             = var.vpc_id
   rt_id              = var.rt_id
   availability_zones = var.availability_zones
-  cidr_blocks        = local.subnet_allocation[var.participant].subnets
+  cidr_blocks        = local.env_subnets[var.environment]
 }

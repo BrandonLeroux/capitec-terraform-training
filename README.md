@@ -46,24 +46,22 @@ flowchart TB
   SG --> CL
 ```
 
-Subnet CIDRs are chosen per **trainee** via `var.participant` (a key into the
-allocation table in the root `participants.tf`; the `eks` module itself just
-receives `cidr_blocks`). Each trainee gets three consecutive `/24`s, generated
-from a base octet rather than hand-listed:
+### Subnets per environment
 
-```mermaid
-flowchart LR
-  p["var.participant<br/>e.g. brandon_le_roux"] --> m["participants map<br/>{ name, base octet }"]
-  m --> g["for i in range(3):<br/>10.0.(base+i).0/24"]
-  g --> s["3 × /24 subnets<br/>→ one per AZ"]
-```
+All environments deploy into the **same VPC**, so each gets its own non-overlapping
+`/24` trio (`brandon_le_roux`'s allocation, extended per environment in the root
+`env_subnets` map in `participants.tf`). The `eks` module just receives `cidr_blocks`.
 
-| participant | base | subnets |
-|-------------|------|---------|
-| `amen_moipushi` | 0 | `10.0.0/1/2.0/24` |
-| `brandon_le_roux` *(default)* | 6 | `10.0.6/7/8.0/24` |
-| `nathan_mills` | 60 | `10.0.60/61/62.0/24` |
-| … 34 trainees total | | |
+| Environment | Subnets (one per AZ) |
+|-------------|----------------------|
+| `dev` | `10.0.6.0/24`, `10.0.7.0/24`, `10.0.8.0/24` *(brandon's original block)* |
+| `int` | `10.0.105.0/24`, `10.0.106.0/24`, `10.0.107.0/24` |
+| `qa` | `10.0.108.0/24`, `10.0.109.0/24`, `10.0.110.0/24` |
+| `prod` | `10.0.111.0/24`, `10.0.112.0/24`, `10.0.113.0/24` |
+
+The `participants` table in `participants.tf` (34 trainees, 3 consecutive `/24`s
+each, generated from a base octet) remains as the class reference allocation;
+`dev` reuses `brandon_le_roux`'s entry from it.
 
 ---
 
@@ -182,8 +180,7 @@ the approval. AWS auth uses the repo secrets `AWS_ACCESS_KEY_ID` /
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `region` | `af-south-1` | AWS region to deploy into |
-| `participant` | `brandon_le_roux` | Selects the trainee's `/24` subnet block |
+| `environment` | `dev` | Selects the env's subnet block + names resources |
 | `capacity_type` | `SPOT` | `ON_DEMAND` or `SPOT` (validated) |
-| `environment` | `dev` | Name suffix on resources |
 | `surname` / `initials` | `leroux` / `bap` | Compose the `lerouxbap` resource prefix |
 | `vpc_id` / `rt_id` | pre-set | Existing VPC / route table to attach to |

@@ -46,4 +46,15 @@ locals {
       subnets = [for i in range(3) : "10.0.${p.base + i}.0/24"]
     }
   }
+
+  # Environment → subnet trio for the deploying participant (brandon_le_roux).
+  # Each environment gets its own /24s so all four can run in the shared VPC at
+  # the same time. dev reuses brandon's original block (already deployed);
+  # int/qa/prod are additional brandon /24s in free address space (10.0.105+).
+  env_subnets = {
+    dev  = local.subnet_allocation.brandon_le_roux.subnets # 10.0.6.0/24, 10.0.7.0/24, 10.0.8.0/24
+    int  = ["10.0.105.0/24", "10.0.106.0/24", "10.0.107.0/24"]
+    qa   = ["10.0.108.0/24", "10.0.109.0/24", "10.0.110.0/24"]
+    prod = ["10.0.111.0/24", "10.0.112.0/24", "10.0.113.0/24"]
+  }
 }
