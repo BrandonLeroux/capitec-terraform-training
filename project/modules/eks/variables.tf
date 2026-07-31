@@ -1,14 +1,17 @@
 variable "availability_zones" {
-  type    = list(string)
-  default = ["af-south-1a", "af-south-1b", "af-south-1c"]
+  type        = list(string)
+  description = "Availability zones to spread the subnets and node group across."
+  default     = ["af-south-1a", "af-south-1b", "af-south-1c"]
 }
 
 variable "vpc_id" {
-  type = string
+  type        = string
+  description = "ID of the VPC to create the cluster networking in."
 }
 
 variable "rt_id" {
-  type = string
+  type        = string
+  description = "ID of the route table to associate the subnets with."
 }
 
 variable "cidr_blocks" {
@@ -17,13 +20,14 @@ variable "cidr_blocks" {
 }
 
 variable "prefix" {
-  type    = string
-  default = "lerouxbap"
+  type        = string
+  description = "Name prefix for all resources (e.g. \"lerouxbap\")."
 }
 
 variable "environment" {
-  type    = string
-  default = "dev"
+  type        = string
+  description = "Environment name used in resource names (e.g. dev, int, prod)."
+  default     = "dev"
 }
 
 variable "cluster_version" {
@@ -45,7 +49,8 @@ variable "cluster_admin_policy_arn" {
 }
 
 variable "node_policy_arns" {
-  type = list(string)
+  type        = list(string)
+  description = "IAM policy ARNs attached to the node group role."
   default = [
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",

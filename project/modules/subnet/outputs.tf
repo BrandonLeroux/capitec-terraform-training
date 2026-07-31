@@ -1,7 +1,9 @@
 output "subnet_ids" {
-  value = [for s in aws_subnet.this : s.id]
+  description = "IDs of the created subnets."
+  value       = [for s in aws_subnet.this : s.id]
 }
 
 output "subnets" {
-  value = aws_subnet.this
+  description = "Full subnet objects, keyed by availability zone."
+  value       = aws_subnet.this
 }
