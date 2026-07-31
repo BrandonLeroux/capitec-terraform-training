@@ -40,9 +40,36 @@ jobs:
           echo "env=$env" >> "$GITHUB_OUTPUT"
           echo "Resolved environment '$env' from ref '$ref'"
 
+  # fmt + validate run as their own stage; plan/apply below depend on it, so
+  # this must complete successfully before any plan/apply starts.
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive
+
+      # -backend=false: init providers/modules for validation without touching
+      # any environment's state, so this stage is env-independent and fast.
+      - name: Terraform init (no backend)
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
   plan:
     name: Plan
-    needs: resolve
+    needs: [resolve, validate]
     # PRs and manual runs only — not on push/merge.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
@@ -66,12 +93,6 @@ jobs:
 
       - name: Terraform init
         run: terraform init -input=false -backend-config="values/${TF_ENV}/${TF_ENV}.tfbackend"
-
-      - name: Terraform fmt check
-        run: terraform fmt -check -recursive
-
-      - name: Terraform validate
-        run: terraform validate -no-color
 
       - name: Terraform plan
         # Run under a pseudo-TTY so Terraform emits ANSI colour, which the
@@ -110,7 +131,7 @@ jobs:
 
   apply:
     name: Apply
-    needs: resolve
+    needs: [resolve, validate]
     # Runs after a merge/push to a protected branch, or a manual dispatch —
     # never on the PR itself. Tracked under the per-environment GitHub
     # Environment (add reviewers/secrets there to gate a specific env).
@@ -134,12 +155,6 @@ jobs:
 
       - name: Terraform init
         run: terraform init -input=false -backend-config="values/${TF_ENV}/${TF_ENV}.tfbackend"
-
-      - name: Terraform fmt check
-        run: terraform fmt -check -recursive
-
-      - name: Terraform validate
-        run: terraform validate -no-color
 
       - name: Terraform apply
         # Re-plans against the current state and applies, under a pseudo-TTY
