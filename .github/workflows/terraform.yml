@@ -5,10 +5,12 @@ name: Terraform
 on:
   pull_request:
     branches: [main, dev, int, qa, prod]
+  # Allow running by hand from the Actions tab (pick a branch).
+  workflow_dispatch:
 
-# Newer pushes to the same PR cancel superseded runs.
+# Newer pushes to the same PR (or ref) cancel superseded runs.
 concurrency:
-  group: terraform-${{ github.event.pull_request.number }}
+  group: terraform-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -47,6 +49,16 @@ jobs:
 
       - name: Terraform plan
         run: terraform plan -input=false -no-color -out=tfplan
+
+      - name: Plan summary
+        if: success()
+        run: |
+          {
+            echo "### Terraform plan"
+            echo '```terraform'
+            terraform show -no-color tfplan
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload plan
         uses: actions/upload-artifact@v4
